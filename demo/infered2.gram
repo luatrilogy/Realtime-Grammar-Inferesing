@@ -1,0 +1,28 @@
+// Inference metrics
+// tokens: 451 
+// operators: ++ - / <= = >
+// keywords: const for if let return
+ 
+start: Program;;
+Program -> StmtList;
+StmtList -> Stmt ';' StmtList | Stmt | ε;
+Stmt -> Assign | Expr | If | For | Return;
+Assign -> ID AssignOp Expr;
+AssignOp -> '=';
+Return -> 'return' Expr;
+If -> 'if' '(' Expr ')' Stmt OptElse;
+OptElse -> ε;
+For -> 'for' '(' OptAssign ';' OptExpr ';' OptAssign ')' Stmt;
+OptAssign -> Assign | ε;
+OptExpr -> Expr | ε;
+MulExpr -> Factor MulExprTail;
+MulExprTail -> '/' Factor MulExprTail | ε;
+AddExpr -> MulExpr AddExprTail;
+AddExprTail -> '-' MulExpr AddExprTail | ε;
+RelExpr -> AddExpr RelExprTail;
+RelExprTail -> '>' | '<=' AddExpr RelExprTail | ε;
+Expr -> RelExpr;
+Factor -> ID | NUM | STR | '(' Expr ')';
+ID -> /[A-Za-z_][A-Za-z0-9_]*/;
+NUM -> /(?:0|[1-9][0-9]*)/;
+STR -> /"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/;

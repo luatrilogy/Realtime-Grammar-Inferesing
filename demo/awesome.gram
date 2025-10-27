@@ -1,0 +1,16 @@
+start: Program;;
+Program -> StmtList;
+StmtList -> Stmt ';' StmtList | Stmt | ε;
+Stmt -> Assign | Expr | While;
+Assign -> ID AssignOp Expr;
+AssignOp -> '=';
+While -> 'while' '(' Expr ')' Stmt;
+RelExpr -> Factor RelExprTail;
+RelExprTail -> '<' Factor RelExprTail | ε;
+BitExpr -> RelExpr BitExprTail;
+BitExprTail -> '^' RelExpr BitExprTail | ε;
+Expr -> BitExpr;
+Factor -> ID | NUM | STR | '(' Expr ')';
+ID -> /[A-Za-z_][A-Za-z0-9_]*/;
+NUM -> /(?:0|[1-9][0-9]*)/;
+STR -> /"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/;

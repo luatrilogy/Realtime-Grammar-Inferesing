@@ -1,0 +1,4 @@
+// Intentionally ambiguous: classic Expr + Expr grammar (no precedence)
+start: Expr;
+
+Expr -> Expr '+' Expr | NUM

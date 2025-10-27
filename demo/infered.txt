@@ -1,0 +1,19 @@
+// Inference metrics
+// tokens: 52
+// operators: + =
+// keywords: let return
+
+start: Program;;
+Program -> StmtList;
+StmtList -> Stmt ';' StmtList | Stmt | ε;
+Stmt -> Assign | Expr | Return;
+Assign -> ID AssignOp Expr;
+AssignOp -> '='; 
+Return -> 'return' Expr;
+AddExpr -> Factor AddExprTail;
+AddExprTail -> '+' Factor AddExprTail | ε;
+Expr -> AddExpr;
+Factor -> ID | NUM | STR | '(' Expr ')';
+ID -> /[A-Za-z_][A-Za-z0-9_]*/;
+NUM -> /(?:0|[1-9][0-9]*)/;
+STR -> /"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/;

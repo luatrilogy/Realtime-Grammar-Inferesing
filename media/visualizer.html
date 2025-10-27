@@ -1,0 +1,572 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src data: blob:;
+                 style-src 'unsafe-inline';
+                 script-src 'unsafe-inline';">
+  <style>
+    :root { --bg:#1e1e1e; --fg:#eaeaea; --muted:#a8a8a8; --panel:#252525; --line:#3a3a3a;}
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui, Segoe UI, Roboto, Arial; }
+    #bar { display:flex; gap:8px; align-items:center; padding:8px 12px; background:#2b2b2b; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:1; }
+    #bar button { background:#3a3a3a; color:#fff; border:0; border-radius:6px; padding:6px 10px; cursor:pointer; }
+    #bar button:hover { background:#4a4a4a; }
+    #status { margin-left:auto; color:var(--muted); font-size:12px; }
+    #wrap { padding:12px; display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; }
+    .card h3 { margin:4px 0 8px; font-size:14px; color:#fff; }
+    table { width:100%; border-collapse: collapse; font-size:12px; }
+    th, td { border:1px solid var(--line); padding:6px 8px; vertical-align:top; }
+    th { background:#2f2f2f; text-align:left; }
+    code { background:#2a2a2a; padding:2px 4px; border-radius:4px; }
+    #svgpanel { grid-column: 1 / span 2; }
+    #graph { width:100%; height:auto; background:#202020; border:1px solid var(--line); }
+    .pill { display:inline-block; background:#3b3b3b; padding:1px 6px; border-radius:10px; margin:1px; }
+    #parsebar { display:flex; gap:8px; align-items:center; }
+    #inp { width:100%; padding:6px 8px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:6px; }
+    #err { color:#ffb4b4; font-size:12px; margin-left:8px; }
+    svg { width:100%; height:auto; background:#202020; border:1px solid var(--line); overflow: visible; }  </style>
+</head>
+<body>
+  <div id="bar">
+    <button id="exportParse">Export Parse Tree SVG</button>
+    <button id="exportGraph">Export Dependency Graph SVG</button>
+    <button id="refresh">Refresh</button>
+    <span id="status"></span>
+  </div>
+
+  <div id="metrics" style="font-family: var(--vscode-font-family, sans-serif); font-size: 12px; padding: 8px; border-top: 1px solid #ccc;">
+    <strong>Metrics:</strong>
+    <div id="mTokens">tokens: —</div>
+    <div id="mOps">operators: —</div>
+    <div id="mKws">keywords: —</div>
+  </div>
+
+  <div id="wrap">
+    <div class="card">
+      <h3>FIRST sets</h3>
+      <div id="first"></div>
+    </div>
+    <div class="card">
+      <h3>FOLLOW sets</h3>
+      <div id="follow"></div>
+    </div>
+    <div class="card" style="grid-column:1 / span 2">
+      <h3>Nonterminal dependency graph (sketch)</h3>
+      <svg id="viz" viewBox="0 0 900 240"></svg>
+    </div>
+    <div id="svgpanel" class="card">
+      <h3>Parse tree</h3>
+      <div id="parsebar">
+        <input id="inp" placeholder="Enter input string, e.g.  while ( x < y ) x = x * 2 ;" />
+        <button id="btnParse">Parse</button>
+        <span id="err"></span>
+      </div>
+      <svg id="graph" viewBox="0 0 1200 600"></svg>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const $ = (id) => document.getElementById(id);
+
+    function renderMetrics(m = {}) {
+      const ops = Array.isArray(m.unique_ops) ? m.unique_ops.join(' ') : '(none)';
+      const kws = Array.isArray(m.has_keywords) ? m.has_keywords.join(' ') : '(none)';
+      document.getElementById('mTokens').textContent = `tokens: ${m.num_tokens ?? '—'}`;
+      document.getElementById('mOps').textContent    = `operators: ${ops}`;
+      document.getElementById('mKws').textContent    = `keywords: ${kws}`;
+    }
+
+    let currentModel = null; // parsed grammar model
+
+    document.getElementById('exportParse').addEventListener('click', () => {
+      const xml = new XMLSerializer().serializeToString(document.getElementById('graph'));
+      vscode.postMessage({ type: 'EXPORT_SVG', xml, filename: 'parse-tree.svg' });
+    });
+
+    document.getElementById('exportGraph').addEventListener('click', () => {
+      const xml = new XMLSerializer().serializeToString(document.getElementById('viz'));
+      vscode.postMessage({ type: 'EXPORT_SVG', xml, filename: 'dependency-graph.svg' });
+    });
+
+    document.getElementById('refresh').addEventListener('click', () => {
+      vscode.postMessage({ type: 'REFRESH' });
+    });
+
+    vscode.postMessage({ type: 'READY', when: Date.now() });
+
+    $('btnParse').addEventListener('click', () => {
+      if (!currentModel) { $('err').textContent = 'No grammar loaded.'; return; }
+      const input = $('inp').value ?? '';
+      try {
+        const tokens = lex(input, currentModel);
+        const tree = earleyParse(currentModel, tokens);
+        renderParseTree(tree);
+        $('err').textContent = '';
+      } catch (e) {
+        $('err').textContent = String(e.message || e);
+        renderParseTree(null);
+      }
+    });
+
+    window.addEventListener('message', (e) => {
+      const msg = event.data || {};
+      switch (msg.type) {
+        case 'METRICS':
+          renderMetrics(msg.data)
+          break
+        case 'GRAMMAR_TEXT':
+          $('status').textContent = msg.status || '';
+          currentModel = parseGrammar(msg.text || '');
+          const { first, follow } = firstFollow(currentModel);
+          renderTable('first', first);
+          renderTable('follow', follow);
+          renderGraph(currentModel);
+          break
+      }
+    });
+
+    /* -------------------- Grammar parsing -------------------- */
+    function parseGrammar(text) {
+      const lines = text.split(/\r?\n/);
+      const prods = [];
+      let start = null;
+      const nonterminals = new Set();
+      const terminals = new Set();
+      const quoted = new Set();
+
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i].trim();
+        if (!raw || raw.startsWith('//') || raw.startsWith('#')) continue;
+
+        const s = raw.match(/^start\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*;?/);
+        if (s) { start = s[1]; continue; }
+
+        const m = raw.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?:->|→)\s*(.+)$/);
+        if (m) {
+          const lhs = m[1];
+          nonterminals.add(lhs);
+          const alts = m[2].split('|');
+          for (const alt of alts) {
+            const tokens = tokenize(alt.trim());
+            prods.push({ lhs, rhs: tokens });
+            for (const t of tokens) {
+              if (isNonterminal(t)) {
+                nonterminals.add(t);
+              } else if (isQuoted(t)) {
+                terminals.add(t);
+                quoted.add(unquote(t));
+              } else if (t === 'ID' || t === 'NUM') {
+                // special terminals
+                terminals.add(t);
+              } else if (t !== 'ε' && t.toLowerCase() !== 'epsilon') {
+                terminals.add(t);
+              }
+            }
+          }
+        }
+      }
+      return {
+        start: start || (nonterminals.size ? [...nonterminals][0] : null),
+        prods,
+        nonterminals: [...nonterminals],
+        terminals: [...terminals],
+        literalTerminals: [...quoted] // raw literal values without quotes
+      };
+    }
+    function tokenize(s) {
+      if (!s) return [];
+      const raw = s.split(/\s+/).filter(Boolean);
+      // If the entire alternative is exactly ε (or epsilon), treat as empty production
+      if (raw.length === 1 && (raw[0] === 'ε' || raw[0].toLowerCase() === 'epsilon')) {
+        return [];
+      }
+      return raw;
+    }
+    function isNonterminal(tok) {
+      return /^[A-Z]/.test(tok) && tok !== 'ID' && tok !== 'NUM';
+    }
+    function isQuoted(tok) { return /^'.*'$/.test(tok); }
+    function unquote(tok) { return tok.slice(1, -1); }
+
+    /* -------------------- FIRST/FOLLOW (as before) -------------------- */
+    function firstFollow(g) {
+      const NT = g.nonterminals;
+      const FIRST = new Map();
+      const FOLLOW = new Map();
+      const nullable = new Set();
+      for (const A of NT) { FIRST.set(A, new Set()); FOLLOW.set(A, new Set()); }
+      if (g.start) FOLLOW.get(g.start).add('$');
+
+      const FIRST_alpha = (alpha) => {
+        const out = new Set();
+        let allNullable = true;
+        for (const X of alpha) {
+          if (!isNonterminal(X)) { out.add(X); allNullable = false; break; }
+          const fX = FIRST.get(X);
+          for (const t of fX) if (t !== 'ε') out.add(t);
+          if (!fX.has('ε')) { allNullable = false; break; }
+        }
+        if (allNullable) out.add('ε');
+        return out;
+      };
+
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const p of g.prods) {
+          if (p.rhs.length === 0 || p.rhs[0] === 'ε' || p.rhs.every(s => isNonterminal(s) && nullable.has(s))) {
+            if (!nullable.has(p.lhs)) { nullable.add(p.lhs); changed = true; }
+          }
+        }
+        for (const p of g.prods) {
+          const fA = FIRST.get(p.lhs);
+          const f = FIRST_alpha(p.rhs);
+          for (const t of f) if (!fA.has(t)) { fA.add(t); changed = true; }
+        }
+        for (const p of g.prods) {
+          for (let i = 0; i < p.rhs.length; i++) {
+            const B = p.rhs[i];
+            if (!isNonterminal(B)) continue;
+            const beta = p.rhs.slice(i + 1);
+            const fBeta = FIRST_alpha(beta);
+            const followB = FOLLOW.get(B);
+            let local = false;
+            for (const t of fBeta) {
+              if (t !== 'ε' && !followB.has(t)) { followB.add(t); local = true; }
+            }
+            if (beta.length === 0 || fBeta.has('ε')) {
+              const followA = FOLLOW.get(p.lhs);
+              for (const t of followA) if (!followB.has(t)) { followB.add(t); local = true; }
+            }
+            if (local) changed = true;
+          }
+        }
+      }
+      return { first: FIRST, follow: FOLLOW };
+    }
+
+    /* -------------------- Lexer -------------------- */
+    // Matches literal tokens from grammar (e.g., 'while', '==', '(', ')'),
+    // plus ID and NUM if they appear in the grammar.
+    function lex(input, g) {
+      const out = [];
+      const lits = [...g.literalTerminals].sort((a,b) => b.length - a.length); // longest first
+      const wantID  = g.terminals.includes('ID');
+      const wantNUM = g.terminals.includes('NUM');
+
+      let i = 0;
+      while (i < input.length) {
+        if (/\s/.test(input[i])) { i++; continue; }
+
+        // try literal terminals
+        let matched = false;
+        for (const L of lits) {
+          if (input.slice(i, i + L.length) === L) {
+            out.push({ type: `'${L}'`, text: L });
+            i += L.length; matched = true; break;
+          }
+        }
+        if (matched) continue;
+
+        // NUM
+        if (wantNUM) {
+          const m = /^[0-9]+/.exec(input.slice(i));
+          if (m) { out.push({ type: 'NUM', text: m[0] }); i += m[0].length; continue; }
+        }
+        // ID
+        if (wantID) {
+          const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(input.slice(i));
+          if (m) { out.push({ type: 'ID', text: m[0] }); i += m[0].length; continue; }
+        }
+
+        throw new Error(`Lex error at position ${i}: '${input.slice(i, i+10)}...'`);
+      }
+      return out;
+    }
+
+    /* -------------------- Earley Parser -------------------- */
+    // Works directly with the grammar tokens (nonterminals are Capitalized,
+    // terminals are:
+    //   - quoted literals like  'while'  '('  '=='  etc  (type matches exactly that string),
+    //   - or special terminals ID / NUM if present in the grammar.
+    //
+    // Returns a single parse tree (if any), else throws an Error.
+    function earleyParse(g, tokens) {
+      if (!g.start) throw new Error('No start symbol.');
+      const n = tokens.length;
+      const Chart = Array.from({length: n+1}, () => []);
+      const key = (lhs, rhs, dot, i, j) => `${lhs}->${rhs.join(' ')}•${dot}@${i}-${j}`;
+
+      // Map to dedupe states per chart index
+      const seen = Array.from({length: n+1}, () => new Map());
+
+      function add(k, st) {
+        const kkey = key(st.lhs, st.rhs, st.dot, st.i, st.j);
+        if (!seen[k].has(kkey)) { seen[k].set(kkey, st); Chart[k].push(st); }
+        return seen[k].get(kkey);
+      }
+
+      // Seed
+      add(0, { lhs: 'γ', rhs: [g.start], dot: 0, i: 0, j: 0, bp: [] });
+
+      for (let k = 0; k <= n; k++) {
+        for (let p = 0; p < Chart[k].length; p++) {
+          const st = Chart[k][p];
+          const next = st.rhs[st.dot];
+
+          if (st.dot < st.rhs.length && isNonterminal(next)) {
+            // Predictor
+            for (const pr of g.prods.filter(x => x.lhs === next)) {
+              add(k, { lhs: next, rhs: pr.rhs.slice(), dot: 0, i: k, j: k, bp: [] });
+            }
+          } else if (st.dot < st.rhs.length) {
+            // Scanner
+            const t = st.rhs[st.dot];
+            if (k < n && terminalMatches(t, tokens[k])) {
+              add(k+1, { lhs: st.lhs, rhs: st.rhs, dot: st.dot+1, i: st.i, j: k+1, bp: st.bp.concat([{term: tokens[k], k}]) });
+            }
+          } else {
+            // Completer
+            for (const st2 of Chart[st.i]) {
+              const need = st2.rhs[st2.dot];
+              if (need === st.lhs) {
+                const advanced = add(k, { lhs: st2.lhs, rhs: st2.rhs, dot: st2.dot+1, i: st2.i, j: k, bp: st2.bp.concat([{node: st}]) });
+                // no action; state added
+              }
+            }
+          }
+        }
+      }
+
+      const finals = Chart[n].filter(s => s.lhs === 'γ' && s.dot === s.rhs.length && s.i === 0);
+      if (finals.length === 0) throw new Error('No parse (input rejected).');
+
+      // Reconstruct one tree
+      // We annotated bp with sequence of {term} and {node} in order
+      function buildTree(state) {
+        if (state.rhs.length === 0) return { type: state.lhs, children: [] };
+        const kids = [];
+        let bpIdx = 0;
+        for (let i = 0; i < state.rhs.length; i++) {
+          const sym = state.rhs[i];
+          const bpEntry = state.bp[bpIdx++];
+          if (isNonterminal(sym)) {
+            kids.push(buildTree(bpEntry.node));
+          } else {
+            kids.push({ type: sym, token: true, text: bpEntry.term.text });
+          }
+        }
+        return { type: state.lhs, children: kids };
+      }
+      const tree = buildTree(finals[0].bp[0].node);
+      return tree;
+    }
+
+    function terminalMatches(sym, tok) {
+      if (isQuoted(sym)) return unquote(sym) === tok.text;
+      if (sym === 'ID' || sym === 'NUM') return sym === tok.type;
+      return false; // unknown terminal
+    }
+
+    /* -------------------- Rendering tables/graphs -------------------- */
+    function renderTable(targetId, map) {
+      const container = document.getElementById(targetId);
+      const rows = [];
+      const keys = [...map.keys()].sort();
+      rows.push(`<table><thead><tr><th>Nonterminal</th><th>${targetId.toUpperCase()}</th></tr></thead><tbody>`);
+      for (const A of keys) {
+        const set = [...map.get(A)];
+        set.sort((a,b) => (a === 'ε' ? -1 : b === 'ε' ? 1 : a.localeCompare(b)));
+        const pills = set.map(s => `<span class="pill">${escapeHtml(s)}</span>`).join(' ');
+        rows.push(`<tr><td><code>${escapeHtml(A)}</code></td><td>${pills || '<span class="pill">∅</span>'}</td></tr>`);
+      }
+      rows.push(`</tbody></table>`);
+      container.innerHTML = rows.join('\n');
+    }
+
+    function renderGraph(g) {
+      const svg = document.getElementById('viz');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      const ns = g.nonterminals.slice().sort();
+      if (ns.length === 0) {
+        svg.appendChild(svgel('text', { x: 16, y: 36, fill: '#bbb' }, 'No nonterminals found.'));
+        return;
+      }
+      const W = 900, H = 40 + 32 * ns.length;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const leftX = 140, rightX = 760;
+
+      ns.forEach((A, i) => {
+        const y = 40 + i * 32;
+        svg.appendChild(svgel('text', { x: 20, y, fill: '#ddd' }, A));
+        svg.appendChild(svgel('circle', { cx: leftX, cy: y - 6, r: 5, fill: '#59c' }));
+        svg.appendChild(svgel('circle', { cx: rightX, cy: y - 6, r: 5, fill: '#c95' }));
+      });
+
+      const edges = new Set();
+      for (const p of g.prods) for (const s of p.rhs) if (isNonterminal(s)) edges.add(`${p.lhs}=>${s}`);
+      const rowY = (sym) => 40 + ns.indexOf(sym) * 32 - 6;
+      for (const e of edges) {
+        const [A, B] = e.split('=>');
+        const y1 = rowY(A), y2 = rowY(B);
+        svg.appendChild(svgel('line', { x1: 146, y1, x2: 754, y2, stroke: '#6a6', 'stroke-width': 1.5, 'marker-end': 'url(#arrow)' }));
+      }
+      const defs = svgel('defs', {}, '');
+      const marker = svgel('marker', { id: 'arrow', markerWidth: 8, markerHeight: 6, refX: 8, refY: 3, orient: 'auto' });
+      marker.appendChild(svgel('path', { d: 'M0,0 L8,3 L0,6 z', fill: '#6a6' }));
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+    }
+
+    /* -------------------- Parse tree rendering -------------------- */
+    function renderParseTree(tree) {
+      const svg = document.getElementById('graph');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      if (!tree) {
+        svg.setAttribute('viewBox', '0 0 800 180');
+        svg.appendChild(svgel('text', { x: 20, y: 40, fill: '#bbb' }, 'No parse to display.'));
+        return;
+      }
+
+      // ------------------ layout constants ------------------
+      const PADDING_X = 10;          // inside each box
+      const PADDING_Y = 6;
+      const H_GAP = 22;              // gap between siblings
+      const V_GAP = 56;              // gap between levels
+      const NODE_H = 28;             // fixed height works well for single-line labels
+      const MIN_W = 42;              // minimum node width
+      const MARGIN = 24;             // outer margin for the whole tree
+
+      // ------------------ measure text exactly ------------------
+      const measurer = (() => {
+        const t = svgel('text', { x: -9999, y: -9999, 'font-size': 12, fill: 'transparent' }, '');
+        svg.appendChild(t);
+        return (label) => {
+          t.textContent = label;
+          const w = t.getBBox().width || 0;
+          return Math.max(MIN_W, Math.ceil(w) + 2 * PADDING_X);
+        };
+      })();
+
+      const labelOf = (n) => (n.token ? n.text : n.type);
+
+      // ------------------ measure pass ------------------
+      // returns total subtree width/height & stores per-node box width
+      function measure(n) {
+        const selfW = measurer(labelOf(n));
+        if (!n.children || n.children.length === 0) {
+          n.__measure = { w: selfW, h: NODE_H, boxW: selfW };
+          return n.__measure;
+        }
+        let totalW = 0;
+        let maxH = 0;
+        const childMeasures = [];
+        for (const c of n.children) {
+          const m = measure(c);
+          childMeasures.push(m);
+          totalW += m.w;
+          maxH = Math.max(maxH, m.h);
+        }
+        totalW += H_GAP * (n.children.length - 1);
+        const w = Math.max(selfW, totalW);
+        n.__measure = { w, h: NODE_H + V_GAP + maxH, boxW: selfW, children: childMeasures };
+        return n.__measure;
+      }
+
+      // ------------------ layout pass ------------------
+      // positions nodes; x is center of subtree
+      function layout(n, left, top) {
+        const m = n.__measure;
+        const cx = left + m.w / 2;
+        n.__x = cx;
+        n.__y = top + NODE_H / 2;
+
+        if (!n.children || n.children.length === 0) return;
+
+        // distribute children left-to-right using their subtree widths
+        let cursor = left;
+        for (const c of n.children) {
+          const cm = c.__measure;
+          layout(c, cursor, top + NODE_H + V_GAP);
+          cursor += cm.w + H_GAP;
+        }
+      }
+
+      // ------------------ draw pass ------------------
+      const g = svgel('g', {});    // a single group we can translate later
+      svg.appendChild(g);
+
+      function draw(n) {
+        // edges first so they render under boxes
+        if (n.children && n.children.length) {
+          for (const c of n.children) {
+            g.appendChild(svgel('line', {
+              x1: n.__x, y1: n.__y + NODE_H / 2,
+              x2: c.__x, y2: c.__y - NODE_H / 2,
+              stroke: '#8bc34a', 'stroke-width': 1.4
+            }));
+            draw(c);
+          }
+        }
+
+        const isTok = !!n.token;
+        const label = labelOf(n);
+        const bw = n.__measure.boxW;
+
+        g.appendChild(svgel('rect', {
+          x: n.__x - bw / 2, y: n.__y - NODE_H / 2,
+          width: bw, height: NODE_H,
+          rx: 6, ry: 6,
+          fill: isTok ? '#34495e' : '#2d2d2d',
+          stroke: '#666'
+        }));
+        g.appendChild(svgel('text', {
+          x: n.__x, y: n.__y + 4,
+          'text-anchor': 'middle',
+          fill: '#eaeaea', 'font-size': 12
+        }, label));
+      }
+
+      // run layout + draw
+      const rootM = measure(tree);
+      layout(tree, 0, 0);
+      draw(tree);
+
+      // ------------------ fit & margin ------------------
+      // compute bounds of all nodes (not just measure data) to size the viewBox
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      (function walk(n) {
+        minX = Math.min(minX, n.__x - n.__measure.boxW / 2);
+        maxX = Math.max(maxX, n.__x + n.__measure.boxW / 2);
+        minY = Math.min(minY, n.__y - NODE_H / 2);
+        maxY = Math.max(maxY, n.__y + NODE_H / 2);
+        (n.children || []).forEach(walk);
+      })(tree);
+
+      const width = (maxX - minX) + 2 * MARGIN;
+      const height = (maxY - minY) + 2 * MARGIN;
+
+      // shift the whole <g> so everything is inside the viewBox with margin
+      const tx = MARGIN - minX;
+      const ty = MARGIN - minY;
+      g.setAttribute('transform', `translate(${tx},${ty})`);
+
+      svg.setAttribute('viewBox', `0 0 ${Math.max(400, width)} ${Math.max(220, height)}`);
+    }
+
+    // helper to create SVG elements
+    function svgel(name, attrs, text) {
+      const n = document.createElementNS('http://www.w3.org/2000/svg', name);
+      for (const k in attrs) n.setAttribute(k, String(attrs[k]));
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function escapeHtml(s) { return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  </script>
+</body>
+</html>

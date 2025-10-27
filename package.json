@@ -1,0 +1,111 @@
+{
+  "name": "uta-grammar-lab",
+  "displayName": "UTA Grammar Lab",
+  "description": "Near-real-time grammar preview & basic diagnostics + visualizer for research workflows.",
+  "version": "0.0.1",
+  "publisher": "lua-research",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:gramdsl",
+    "onCommand:uta.gram.visualize",
+    "onCommand:uta.infer.preview",
+    "onCommand:uta.infer.full",
+    "onLanguage:gramdsl",
+    "onCommand:utaGrammarLab.inferFromActive",
+    "onCommand:utaGrammarLab.inferFromFile"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "gramdsl",
+        "extensions": [
+          ".gram"
+        ],
+        "aliases": [
+          "Grammar DSL"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "uta.gram.visualize",
+        "title": "Grammar Lab: Open Visualizer"
+      },
+      {
+        "command": "uta.infer.preview",
+        "title": "Grammar Lab: Preview Inference (sample)"
+      },
+      {
+        "command": "uta.infer.full",
+        "title": "Grammar Lab: Full Inference (all traces)"
+      },
+      { "command": "utaGrammarLab.inferFromActive", "title": "Grammar Lab: Infer Grammar from Active Editor" },
+      { "command": "utaGrammarLab.inferFromFile",   "title": "Grammar Lab: Infer Grammar from File…" },
+      { "command": "utaGrammarLab.diffGrammars", "title": "Grammar Lab: Compare Inferred Grammars (A ↔ B)" },
+      { "command": "utaGrammarLab.checkCoverage", "title": "Grammar Lab: Grammar Coverage on File…" },
+      {"command": "utaGrammarLab.fuzzGrammar", "title": "Grammar Lab: Generate Random Programs from Grammar"}
+    ],
+    "configuration": {
+      "title": "UTA Grammar Lab",
+      "properties": {
+        "utaGrammarLab.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to the Python interpreter used for inference."
+        },
+        "utaGrammarLab.inferScript": {
+          "type": "string",
+          "default": "python/infer_backend.py",
+          "description": "Relative path to the Python inference script."
+        },
+        "utaGrammarLab.tracesDir": {
+          "type": "string",
+          "default": "examples",
+          "description": "Relative directory containing *.txt traces"
+        },
+        "utaGrammarLab.previewSample": {
+          "type": "number",
+          "default": 300,
+          "description": "Number of traces for preview"
+        },
+        "utaGrammarLab.previewBudgetSeconds": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Time budget (seconds) for preview inference"
+        },
+          "utaGrammarLab.inferTimeoutSec": {
+          "type": "number",
+          "default": 10,
+          "description": "Timeout (seconds) for inference runs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/vscode": "^1.84.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.4.2",
+    "vsce": "^1.97.0",
+    "vscode": "^1.1.34",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
+  },
+  "dependencies": {
+    "vscode-uri": "^3.0.8"
+  }
+}

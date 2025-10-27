@@ -1,0 +1,10 @@
+start: Value;
+
+Value -> Object | Array | String | Number | 'true' | 'false' | 'null'
+Object -> '{' Members '}' | '{' '}'
+Members -> Pair ',' Members | Pair
+Pair -> String ':' Value
+Array -> '[' Elements ']' | '[' ']'
+Elements -> Value ',' Elements | Value
+String -> ID
+Number -> NUM

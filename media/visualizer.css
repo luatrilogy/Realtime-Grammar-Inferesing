@@ -1,0 +1,7 @@
+body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; }
+#bar { padding: 8px 12px; border-bottom: 1px solid #ddd; background: #f8f8f8; }
+#app { padding: 12px; }
+button { padding: 6px 10px; border: 1px solid #aaa; border-radius: 6px; background: #fff; cursor: pointer; }
+table { border-collapse: collapse; margin-top: 8px; }
+td, th { border: 1px solid #ddd; padding: 4px 8px; }
+code { background: #f3f3f3; padding: 2px 4px; border-radius: 4px; }

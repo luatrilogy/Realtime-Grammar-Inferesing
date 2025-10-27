@@ -1,0 +1,7 @@
+start: BoolExpr;
+
+BoolExpr -> Term BoolTail
+BoolTail -> 'or' Term BoolTail | ε
+Term -> Factor TermTail
+TermTail -> 'and' Factor TermTail | ε
+Factor -> 'not' Factor | '(' BoolExpr ')' | 'true' | 'false' | ID

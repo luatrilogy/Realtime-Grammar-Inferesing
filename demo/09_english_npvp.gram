@@ -1,0 +1,10 @@
+start: S;
+
+S -> NP VP
+NP -> Det N | NP PP
+VP -> V NP | V | VP PP
+PP -> P NP
+Det -> 'the' | 'a'
+N -> ID
+V -> ID
+P -> 'in' | 'on' | 'with'

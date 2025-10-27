@@ -1,0 +1,7 @@
+start: File;
+
+File -> Row '\n' File | Row | ε
+Row -> Field ',' RowTail | Field
+RowTail -> Field ',' RowTail | Field
+Field -> ID | NUM | String
+String -> '"' ID '"'

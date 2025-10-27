@@ -1,0 +1,6 @@
+start: Doc;
+
+Doc -> Element
+Element -> '<' ID '>' Content '</' ID '>'
+Content -> Element Content | Text Content | ε
+Text -> ID | NUM

@@ -1,0 +1,14 @@
+start: Stmt;
+
+Stmt -> IfStmt | WhileStmt | Assign
+IfStmt -> 'if' '(' Cond ')' Stmt ElsePart
+ElsePart -> 'else' Stmt | ε
+WhileStmt -> 'while' '(' Cond ')' Stmt
+Assign -> ID '=' Expr ';'
+Cond -> Expr RelOp Expr
+RelOp -> '<' | '>' | '==' | '!='
+Expr -> Term ExprTail
+ExprTail -> '+' Term ExprTail | '-' Term ExprTail | ε
+Term -> Factor TermTail
+TermTail -> '*' Factor TermTail | '/' Factor TermTail | ε
+Factor -> ID | NUM | '(' Expr ')'

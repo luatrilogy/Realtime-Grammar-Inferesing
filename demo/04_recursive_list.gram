@@ -1,0 +1,5 @@
+start: List;
+
+List -> '[' Elements ']'
+Elements -> Element ',' Elements | Element | ε
+Element -> NUM | ID | List

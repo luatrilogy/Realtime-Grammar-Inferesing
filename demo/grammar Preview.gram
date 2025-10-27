@@ -1,0 +1,4 @@
+grammar Preview;
+terminals: a, b, c;
+start: S;
+S -> a S | c ;
