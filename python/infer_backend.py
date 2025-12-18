@@ -155,7 +155,6 @@ def main():
         }
         sys.stdout.write(json.dumps(out))
     except Exception as e:
-        # Write structured error so your extension can surface it
         sys.stdout.write(json.dumps({"error": str(e)}))
 
 if __name__ == "__main__":

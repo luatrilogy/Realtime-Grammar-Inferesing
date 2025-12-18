@@ -1,0 +1,25 @@
+// Inference metrics
+// tokens: 59
+// operators: % + < = ==
+// keywords: else if let while
+
+start: Program;;
+Program -> StmtList;
+StmtList -> Stmt ';' StmtList | Stmt | ε;
+Stmt -> Assign | Expr | If | While;
+Assign -> ID AssignOp Expr;
+AssignOp -> '=';
+If -> 'if' '(' Expr ')' Stmt OptElse;
+OptElse -> 'else' Stmt | ε;
+While -> 'while' '(' Expr ')' Stmt;
+MulExpr -> Factor MulExprTail;
+MulExprTail -> '%' Factor MulExprTail | ε;
+AddExpr -> MulExpr AddExprTail;
+AddExprTail -> '+' MulExpr AddExprTail | ε;
+RelExpr -> AddExpr RelExprTail;
+RelExprTail -> '<' | '==' AddExpr RelExprTail | ε;
+Expr -> RelExpr;
+Factor -> ID | NUM | STR | '(' Expr ')';
+ID -> /[A-Za-z_][A-Za-z0-9_]*/;
+NUM -> /(?:0|[1-9][0-9]*)/;
+STR -> /"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/;

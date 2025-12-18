@@ -1,7 +1,0 @@
-start: Expr;
-
-Expr -> Term ExprTail
-ExprTail -> '+' Term ExprTail | '-' Term ExprTail | ε
-Term -> Factor TermTail
-TermTail -> '*' Factor TermTail | '/' Factor TermTail | ε
-Factor -> NUM | ID | '(' Expr ')'

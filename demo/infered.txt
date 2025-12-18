@@ -12,7 +12,7 @@ AssignOp -> '=';
 Return -> 'return' Expr;
 AddExpr -> Factor AddExprTail;
 AddExprTail -> '+' Factor AddExprTail | ε;
-Expr -> AddExpr;
+Expr -> AddExpr; 
 Factor -> ID | NUM | STR | '(' Expr ')';
 ID -> /[A-Za-z_][A-Za-z0-9_]*/;
 NUM -> /(?:0|[1-9][0-9]*)/;
