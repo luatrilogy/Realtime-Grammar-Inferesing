@@ -1,0 +1,26 @@
+{
+  "grammar": "start: Program;;\nProgram -> StmtList;\nStmtList -> Stmt ';' StmtList | Stmt | ε;\nStmt -> Assign | Expr;\nMulExpr -> Factor MulExprTail;\nMulExprTail -> '*' | '/' Factor MulExprTail | ε;\nAddExpr -> MulExpr AddExprTail;\nAddExprTail -> '+' | '-' MulExpr AddExprTail | ε;\nExpr -> AddExpr;\nFactor -> ID | NUM | STR | '(' Expr ')';\nID -> /[A-Za-z_][A-Za-z0-9_]*/;\nNUM -> /(?:0|[1-9][0-9]*)/;\nSTR -> /\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'/;",
+  "metrics": {
+    "num_tokens": 180,
+    "unique_ops": [
+      "*",
+      "+",
+      "-",
+      "/"
+    ],
+    "has_keywords": []
+  },
+  "power_metrics": {
+    "wall_seconds": 0.065,
+    "cpu_seconds": 0.015,
+    "platform": "win32",
+    "node_version": "v20.11.1"
+  },
+  "bench": {
+    "train_dir": "A:\\My Stuff\\Projects\\Python Stuff\\Realtime Grammar Inferesing\\bc-example\\train_set",
+    "files_used": 8,
+    "bytes_read": 51,
+    "wall_ms": 57,
+    "invoked_at": "2025-12-24T17:55:08.075Z"
+  }
+}

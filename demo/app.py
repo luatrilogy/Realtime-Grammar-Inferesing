@@ -1,5 +1,6 @@
-x = 1
-y = 10000
- 
-while (x < y):
-    x = x * 2
+import sys
+try:
+    total = sum(int(arg) for arg in sys.argv[1:])
+    print ('sum =', total)
+except ValueError:
+    print ('Please supply integer arguments')

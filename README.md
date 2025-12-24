@@ -5,7 +5,7 @@ and a parse tree.
 
 # Requirements
 VS Code 1.8x+
-Python 3.8+ available on PATH (or configure pythonPath setting)
+Python 3.10+ available on PATH (or configure pythonPath setting)
 
 # Install (from source)
 Clone this repo and open it in VS Code.
@@ -50,4 +50,11 @@ Uses a probabilistic expander to emit 10 sample sentences/programs from the acti
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 npm --version
 npm run compile
+
+# Grammar Inference Efficiency Testing
+Run in Console 
+
+cd projet_path
+
+node .\out-server\bench.js --train .\examples\[TRAINING_SET] --out .\grammar_output\[OUTPUT_FILE].json --lang while --sample 200 --max_mb 8 --time_budget 60 --verbose
 

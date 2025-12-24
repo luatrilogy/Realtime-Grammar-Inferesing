@@ -1,13 +1,3 @@
-start: Program;
-
-Program -> StmtList
-StmtList -> Stmt ';' StmtList | ε
-Stmt -> Assign | While | Expr
-Assign -> ID '=' Expr
-While -> 'while' '(' Expr RelOp Expr ')' Stmt
-RelOp -> '<' | '>' | '==' | '!='
-Expr -> Term ExprTail
-ExprTail -> '+' Term ExprTail | '-' Term ExprTail | ε
-Term -> Factor TermTail
-TermTail -> '*' Factor TermTail | '/' Factor TermTail | ε
-Factor -> ID | NUM | '(' Expr ')' 
+Stmt → Assign | While
+While → 'while' '(' Expr RelOp Expr ')' Stmt
+Assign → ID ':=' Expr
